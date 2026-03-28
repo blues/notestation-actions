@@ -124,7 +124,7 @@ function runMain() {
 
     log(`Installing notestation-client ${version}...`);
     const installScript = path.join(
-      process.env.GITHUB_ACTION_PATH,
+      __dirname,
       '../install_notestation_client/install.sh'
     );
 
