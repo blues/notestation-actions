@@ -280,11 +280,11 @@ function runMain() {
   };
 
   for (const iface of interfaces) {
-    const envKey = IFACE_ENV_MAP[iface.name];
+    const envKey = IFACE_ENV_MAP[iface.target];
     if (envKey) {
       vars[envKey] = iface.path;
     } else {
-      logWarning(`Interface "${iface.name}" has no NS_* mapping — it will not be exported. ` +
+      logWarning(`Interface "${iface.name}" (target: "${iface.target}") has no NS_* mapping — it will not be exported. ` +
                  'Update IFACE_ENV_MAP in reserve_notestation/index.js if this is a new interface type.');
     }
   }
