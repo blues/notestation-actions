@@ -1,0 +1,23 @@
+name: 'Install notestation-client'
+description: >
+  Downloads and installs the notestation-client binary for the current platform
+  (linux/amd64 or linux/arm64) from blues/notestation GitHub Releases.
+
+inputs:
+  version:
+    description: 'Release version to install (e.g. v1.2.3). Must be explicit — no "latest".'
+    required: true
+  token:
+    description: 'GitHub token with read access to blues/notestation (for downloading the release asset).'
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download and install notestation-client
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_TOKEN: ${{ inputs.token }}
+      run: bash "${{ github.action_path }}/install.sh"

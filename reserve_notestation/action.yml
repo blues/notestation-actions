@@ -1,0 +1,82 @@
+name: 'Reserve Notestation'
+description: >
+  Reserves a Notestation via notestation-client and exposes its devices as NS_*
+  environment variables for subsequent steps. The reservation is automatically
+  released (SIGTERM) in a post step that runs even if the job fails or is cancelled.
+  Requires Tailscale to be connected before this action runs.
+
+inputs:
+  notestation:
+    description: >
+      Specific Notestation hostname to reserve (e.g. "ns-seattle-01").
+      Mutually exclusive with "tags".
+    required: false
+    default: ''
+  tags:
+    description: >
+      Space-separated list of tag filters. The first reachable Notestation
+      matching all tags is reserved (e.g. "mcu_swan notecard_debugger").
+      Mutually exclusive with "notestation".
+    required: false
+    default: ''
+  force:
+    description: 'Force the reservation, disconnecting any current holder.'
+    required: false
+    default: 'false'
+  timeout:
+    description: >
+      Maximum number of seconds to wait for the reservation to be granted.
+    required: false
+    default: '60'
+  notecard-firmware:
+    description: >
+      Notecard firmware to flash after the reservation is established.
+      Accepts an S3 folder URI (e.g. "s3://bucket/path/"), an S3 file URI
+      (e.g. "s3://bucket/path/firmware.bin"), or the special value "nightly"
+      to flash the latest nightly build. If omitted, no firmware is flashed.
+    required: false
+    default: ''
+  version:
+    description: >
+      notestation-client release version to install if not already on PATH
+      (e.g. v1.2.3). Required if notestation-client is not pre-installed via
+      the install_notestation_client action.
+    required: false
+    default: ''
+  token:
+    description: >
+      GitHub token with read access to blues/notestation. Used to install
+      notestation-client if it is not already on PATH.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  ns_hostname:
+    description: 'Notestation hostname (e.g. ns-seattle-01).'
+  ns_reservation_dir:
+    description: 'Path to the reservation directory (~/.notestation/pid-<PID>_<hostname>/).'
+  ns_notecard_usb:
+    description: 'Path to the Notecard USB virtual serial device (symlink to PTY slave).'
+  ns_notecard_aux_uart:
+    description: 'Path to the Notecard AUX UART virtual serial device. Empty if not present.'
+  ns_notecard_lp_uart:
+    description: 'Path to the Notecard LP UART virtual serial device. Empty if not present.'
+  ns_host_mcu_usb:
+    description: 'Path to the host MCU USB virtual serial device. Empty if not present.'
+  ns_host_mcu_uart0:
+    description: 'Path to host MCU UART0 virtual serial device. Empty if not present.'
+  ns_host_mcu_uart1:
+    description: 'Path to host MCU UART1 virtual serial device. Empty if not present.'
+  ns_starnote_usb:
+    description: 'Path to the Starnote USB virtual serial device. Empty if not present.'
+  ns_dbus_address:
+    description: >
+      D-Bus address for GPIO access via gpiocli (e.g. unix:abstract=~/.notestation/.../dbus_sock).
+      Set DBUS_SYSTEM_BUS_ADDRESS to this value when invoking gpiocli.
+      Empty if the Notestation has no GPIO tunnel configured.
+
+runs:
+  using: node20
+  main: index.js
+  post: index.js
+  post-if: always()
