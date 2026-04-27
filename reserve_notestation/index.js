@@ -40,7 +40,7 @@ function getState(key) {
 }
 
 function getInput(name) {
-  const key = `INPUT_${name.toUpperCase().replace(/-/g, '_')}`;
+  const key = `INPUT_${name.replace(/ /g, '_').toUpperCase()}`;
   return (process.env[key] || '').trim();
 }
 
