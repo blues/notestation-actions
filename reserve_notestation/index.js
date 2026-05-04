@@ -153,9 +153,8 @@ function runMain() {
     args.push('--notestation', notestation);
   }
   if (tagsInput) {
-    for (const tag of tagsInput.trim().split(/\s+/).filter(Boolean)) {
-      args.push('--tag', tag);
-    }
+    const tags = tagsInput.trim().split(/\s+/).filter(Boolean);
+    args.push('--tags', tags.join(','));
   }
   if (force) {
     args.push('--force');
