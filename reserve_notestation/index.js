@@ -68,6 +68,39 @@ function poll(description, fn, timeoutMs = 60000, intervalMs = 500) {
   fail(`Timed out after ${timeoutMs / 1000}s waiting for: ${description}`);
 }
 
+// ─── Tailscale reachability pre-check ─────────────────────────────────────────
+// The reservation dial fails if it fires before Tailscale has converged a path
+// to the Notestation. That is common on a freshly-connected ephemeral runner:
+// its tailscaled came up seconds earlier and has no path yet. Waiting until the
+// Notestation actually answers a `tailscale ping` before we spawn the client
+// turns that race into a short, explicit wait instead of a hard reserve failure.
+
+function haveTailscaleCli() {
+  try {
+    execFileSync('which', ['tailscale'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Returns true if `host` answers a Tailscale ping (over any path — direct or a
+// DERP relay; we only need *a* working path before we dial). `tailscale ping`
+// needs the local tailscaled socket, which is root-owned on GitHub-hosted
+// runners, so fall back to sudo if a direct invocation is denied.
+function tailscaleReachable(host) {
+  const pingArgs = ['ping', '--c=1', '--until-direct=false', '--timeout=3s', host];
+  for (const [cmd, args] of [['tailscale', pingArgs], ['sudo', ['-n', 'tailscale', ...pingArgs]]]) {
+    try {
+      execFileSync(cmd, args, { stdio: 'ignore' });
+      return true;
+    } catch {
+      // Not reachable yet, or this invocation form was denied — try the next.
+    }
+  }
+  return false;
+}
+
 // ─── Main step ────────────────────────────────────────────────────────────────
 
 function runMain() {
@@ -158,6 +191,35 @@ function runMain() {
   }
   if (force) {
     args.push('--force');
+  }
+
+  // ── Wait for the Notestation to be reachable over Tailscale ──────────────
+  // Front-load the path-convergence wait here so the client dials a target it
+  // can already reach, instead of racing (and losing to) convergence on its
+  // first dial. Only meaningful for an explicit host — for tag selection the
+  // client picks a reachable Notestation itself.
+
+  const waitForReachable = getInput('wait-for-reachable') !== 'false';
+  const reachableTimeoutMs = (parseInt(getInput('reachable-timeout'), 10) || 60) * 1000;
+
+  if (waitForReachable && notestation) {
+    if (!haveTailscaleCli()) {
+      logWarning(
+        'wait-for-reachable is enabled but the tailscale CLI was not found on PATH — ' +
+        'skipping the reachability pre-check. Ensure Tailscale is connected before this action.'
+      );
+    } else {
+      log(`\nWaiting for ${notestation} to be reachable over Tailscale (up to ${reachableTimeoutMs / 1000}s)...`);
+      poll(
+        `${notestation} reachable over Tailscale`,
+        () => tailscaleReachable(notestation),
+        reachableTimeoutMs,
+        1000
+      );
+      log(`${notestation} is reachable — proceeding to reserve.`);
+    }
+  } else if (waitForReachable && tagsInput) {
+    log('\nSkipping reachability pre-check for tag-based selection (the client selects a reachable Notestation itself).');
   }
 
   log(`\nSpawning: notestation-client ${args.join(' ')}`);

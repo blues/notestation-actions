@@ -28,6 +28,23 @@ inputs:
       Maximum number of seconds to wait for the reservation to be granted.
     required: false
     default: '60'
+  wait-for-reachable:
+    description: >
+      Before reserving an explicit "notestation", wait until it answers a
+      `tailscale ping` (over any path, direct or relayed). This front-loads
+      Tailscale path convergence so the client dials a target it can already
+      reach, instead of racing convergence on its single first dial — the
+      common cause of "connect ... i/o timeout" reserve failures from
+      freshly-connected ephemeral runners. No effect when "tags" is used (the
+      client selects a reachable Notestation itself). Set to "false" to disable.
+    required: false
+    default: 'true'
+  reachable-timeout:
+    description: >
+      Maximum number of seconds to wait for the Notestation to become reachable
+      when "wait-for-reachable" is enabled.
+    required: false
+    default: '60'
   notecard-firmware:
     description: >
       Notecard firmware to flash after the reservation is established.
