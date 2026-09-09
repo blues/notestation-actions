@@ -28,6 +28,16 @@ inputs:
       Maximum number of seconds to wait for the reservation to be granted.
     required: false
     default: '60'
+  required-interfaces:
+    description: >
+      Space- or comma-separated interface targets that must be present for the
+      job to continue (e.g. "host_mcu_usb notecard_usb"). An interface that is
+      configured on the Notestation but not currently presented by its device
+      is otherwise only a warning, because whether a device exposes an
+      interface depends on the firmware running on it. Use this when the job
+      genuinely cannot proceed without one.
+    required: false
+    default: ''
   notecard-firmware:
     description: >
       Notecard firmware to flash after the reservation is established.
