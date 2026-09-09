@@ -29,6 +29,7 @@ TODO: Add Note that the TS_OAUTH_CLIENT_ID and TS_OAUTH_CLIENT_SECRET secrets ar
 | `tags` | No | | Space-separated tags. Reserves the first reachable Notestation matching all tags. Mutually exclusive with `notestation`. |
 | `force` | No | `false` | Force the reservation, disconnecting any current holder. |
 | `timeout` | No | `60` | Seconds to wait for the reservation to be granted. |
+| `required-interfaces` | No | | Space- or comma-separated interface targets that must be present for the job to continue (e.g. `host_mcu_usb`). See [Absent interfaces](#absent-interfaces). |
 | `notecard-firmware` | No | | Notecard firmware to flash after reservation. Accepts an S3 folder URI, S3 file URI, or `nightly`. |
 | `version` | No | | notestation-client version to install if not already on `PATH` (e.g. `v1.2.3`). |
 | `token` | No | `github.token` | GitHub token with read access to the blues/notestation repo. |
@@ -49,6 +50,33 @@ TODO: Add Note that the TS_OAUTH_CLIENT_ID and TS_OAUTH_CLIENT_SECRET secrets ar
 | `ns_dbus_address` | D-Bus address for GPIO access via gpiocli |
 
 All outputs are also exported as environment variables (uppercased) for use without `steps.<id>.outputs`.
+
+**Absent interfaces**
+
+`reservation.json` lists the interfaces the Notestation is *configured* with,
+but a tunnel publishes its symlink only while the attached device is actually
+presenting that interface. Whether it does is up to the firmware running on it:
+a host MCU running a build whose console is on a UART has no `host_mcu_usb`, and
+for most boards that is the default. A halted core has none either.
+
+So an interface that never appears is a **warning**, not a failure. The
+reservation is still held and every `NS_*` variable is still exported — the
+variable gives you the path the device will use once it is presenting the
+interface. This matters because reserving is how you would flash or reset the
+device to get there; failing the reservation would leave no way to recover it.
+
+If your job genuinely cannot proceed without a particular interface, name it in
+`required-interfaces` and the action will fail when it does not appear:
+
+```yaml
+- uses: blues/notestation-actions/reserve_notestation@v1
+  with:
+    tags: mcu_swan mcu_debugger
+    required-interfaces: host_mcu_usb
+```
+
+Prefer waiting for the path yourself after flashing, though — that way a device
+that is merely quiet right now does not stop you from reprogramming it.
 
 ---
 

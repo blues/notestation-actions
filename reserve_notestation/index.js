@@ -68,6 +68,10 @@ function poll(description, fn, timeoutMs = 60000, intervalMs = 500) {
   fail(`Timed out after ${timeoutMs / 1000}s waiting for: ${description}`);
 }
 
+function symlinkExists(p) {
+  try { fs.lstatSync(p); return true; } catch { return false; }
+}
+
 // ─── Main step ────────────────────────────────────────────────────────────────
 
 function runMain() {
@@ -236,8 +240,21 @@ function runMain() {
   // written, so there is a small window where the file exists but symlinks
   // don't yet. We poll only for the interfaces listed in reservation.json —
   // never for a fixed set — to avoid waiting for devices that don't exist.
+  //
+  // An interface can also legitimately never appear. reservation.json lists
+  // what the Notestation is *configured* with, but a tunnel only publishes its
+  // symlink while the device is actually presenting that interface. A host MCU
+  // running firmware with no USB console has no host_mcu_usb — and a stock
+  // Zephyr build is exactly that, since most boards default their console to a
+  // UART. So an absent interface is a warning, not a failure: the reservation
+  // is still valid, and reserving is how you would flash the device to
+  // something that does present the interface. Callers that genuinely cannot
+  // proceed without one can name it in `required-interfaces`.
 
   const interfaces = reservationData.interfaces || [];
+  const requiredInterfaces = getInput('required-interfaces')
+    .split(/[\s,]+/)
+    .filter(Boolean);
 
   if (interfaces.length === 0) {
     logWarning('reservation.json lists no interfaces. This is unexpected.');
@@ -248,15 +265,43 @@ function runMain() {
     }
 
     log('\nWaiting for interface symlinks to appear...');
-    for (const iface of interfaces) {
-      poll(
-        `${iface.name} symlink at ${iface.path}`,
-        () => {
-          try { fs.lstatSync(iface.path); return true; } catch { return false; }
-        },
-        30000
+
+    // One shared deadline rather than one per interface, so a station with
+    // several absent interfaces still costs a single timeout.
+    const deadline = Date.now() + 30000;
+    const pending = new Map(interfaces.map((iface) => [iface.target, iface]));
+
+    while (pending.size > 0 && Date.now() < deadline) {
+      for (const [target, iface] of [...pending]) {
+        if (symlinkExists(iface.path)) {
+          pending.delete(target);
+          log(`  Ready: ${iface.name}`);
+        }
+      }
+      if (pending.size > 0) sleep(500);
+    }
+
+    if (pending.size > 0) {
+      for (const iface of pending.values()) {
+        log(`  Not present: ${iface.name}`);
+      }
+
+      const absent = [...pending.keys()];
+      logWarning(
+        `Configured but not currently present: ${absent.join(', ')}. ` +
+        'A tunnel publishes its symlink only while the device is presenting ' +
+        'that interface, so this usually means the attached device is running ' +
+        'firmware that does not expose it. The reservation is still held and ' +
+        'the NS_* variables are still exported; flash or reset the device and ' +
+        'wait for the path to appear.'
       );
-      log(`  Ready: ${iface.name}`);
+
+      const requiredAbsent = absent.filter((t) => requiredInterfaces.includes(t));
+      if (requiredAbsent.length > 0) {
+        fail(
+          `Interfaces listed in required-interfaces never appeared: ${requiredAbsent.join(', ')}`
+        );
+      }
     }
   }
 
