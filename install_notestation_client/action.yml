@@ -5,7 +5,7 @@ description: >
 
 inputs:
   version:
-    description: 'Release version to install (e.g. v1.2.3). Must be explicit — no "latest".'
+    description: 'Release version to install (e.g. notestation-v3.9.1). Must be explicit — no "latest".'
     required: true
   token:
     description: 'GitHub token with read access to blues/notestation (for downloading the release asset).'

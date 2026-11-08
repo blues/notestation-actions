@@ -54,6 +54,37 @@ function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+// Returns null while process pid runs, or how it ended. The polls below block
+// the event loop, so Node cannot reap the reserve process when it exits: it
+// stays a zombie, and process.kill(pid, 0) still succeeds. So read /proc.
+function howProcessEnded(pid) {
+  let stat;
+  try {
+    stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+  } catch {
+    return 'it exited';
+  }
+  // Field 2, the command name, can hold spaces and parentheses, so count the
+  // fields from the last ")". Field 3 is the state, and field 52 is the exit
+  // status of a zombie, in the form that waitpid(2) gives.
+  const fields = stat.slice(stat.lastIndexOf(')') + 1).trim().split(/\s+/);
+  if (fields[0] !== 'Z') return null;
+  const status = parseInt(fields[49], 10);
+  if (Number.isNaN(status)) return 'it exited';
+  if (status & 0x7f) return `signal ${status & 0x7f} ended it`;
+  return `it exited with code ${status >> 8}`;
+}
+
+// A reserve that fails before the grant, for example because the Notestation
+// is unreachable or only canary stations match the tags, exits at once. Fail
+// then, and do not wait for the full timeout.
+function failIfReserveEnded(pid) {
+  const how = howProcessEnded(pid);
+  if (how) {
+    fail(`notestation-client reserve ended before the grant: ${how}. Its messages are above.`);
+  }
+}
+
 // ─── Polling helper ───────────────────────────────────────────────────────────
 // Calls fn() every intervalMs until it returns a truthy value, or fails after
 // timeoutMs. Returns the truthy value from fn().
@@ -199,6 +230,7 @@ function runMain() {
   const reservationDir = poll(
     `~/.notestation/pid-${pid}_* directory`,
     () => {
+      failIfReserveEnded(pid);
       if (!fs.existsSync(baseDir)) return null;
       const match = fs.readdirSync(baseDir).find((e) => e.startsWith(`pid-${pid}_`));
       return match ? path.join(baseDir, match) : null;
@@ -216,11 +248,15 @@ function runMain() {
   saveState('reservation_dir', reservationDir);
 
   // ── Poll for reservation.json ────────────────────────────────────────────
-  // The server writes reservation.json once the reservation is granted.
+  // The client writes reservation.json after the grant. From notestation-v3.9.0
+  // it writes the file when every port link exists, or after 10 s.
 
   const reservationJsonPath = path.join(reservationDir, 'reservation.json');
   log('\nWaiting for reservation.json...');
-  poll('reservation.json', () => fs.existsSync(reservationJsonPath), timeoutMs);
+  poll('reservation.json', () => {
+    failIfReserveEnded(pid);
+    return fs.existsSync(reservationJsonPath);
+  }, timeoutMs);
 
   let reservationData;
   try {
@@ -232,9 +268,10 @@ function runMain() {
 
   // ── Poll for interface symlinks ──────────────────────────────────────────
   // Each interface listed in reservation.json gets a PTY symlink created by a
-  // tunnel goroutine. Those goroutines start *after* reservation.json is
-  // written, so there is a small window where the file exists but symlinks
-  // don't yet. We poll only for the interfaces listed in reservation.json —
+  // tunnel goroutine. Clients before notestation-v3.9.0 start those goroutines
+  // *after* reservation.json is written, so there is a small window where the
+  // file exists but symlinks don't yet. Later clients write the file after the
+  // symlinks, but a device that is absent still has none. We poll only for the interfaces listed in reservation.json —
   // never for a fixed set — to avoid waiting for devices that don't exist.
 
   const interfaces = reservationData.interfaces || [];

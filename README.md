@@ -26,11 +26,11 @@ TODO: Add Note that the TS_OAUTH_CLIENT_ID and TS_OAUTH_CLIENT_SECRET secrets ar
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `notestation` | No | | Specific Notestation hostname to reserve. Mutually exclusive with `tags`. |
-| `tags` | No | | Space-separated tags. Reserves the first reachable Notestation matching all tags. Mutually exclusive with `notestation`. |
+| `tags` | No | | Space-separated tags. From notestation-v3.9.0, reserves a free Notestation that matches all tags, waits in the queue only when every match is busy, and never takes a canary station. Mutually exclusive with `notestation`. |
 | `force` | No | `false` | Force the reservation, disconnecting any current holder. |
 | `timeout` | No | `60` | Seconds to wait for the reservation to be granted. |
 | `notecard-firmware` | No | | Notecard firmware to flash after reservation. Accepts an S3 folder URI, S3 file URI, or `nightly`. |
-| `version` | No | | notestation-client version to install if not already on `PATH` (e.g. `v1.2.3`). |
+| `version` | No | | notestation-client version to install if not already on `PATH` (e.g. `notestation-v3.9.1`). |
 | `token` | No | `github.token` | GitHub token with read access to the blues/notestation repo. |
 
 **Outputs**
@@ -60,7 +60,7 @@ Downloads and installs the `notestation-client` binary for the current runner (l
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `version` | Yes | | Release version to install (e.g. `v1.2.3`). |
+| `version` | Yes | | Release version to install (e.g. `notestation-v3.9.1`). |
 | `token` | No | `github.token` | GitHub token with read access to the blues/notestation repo. |
 
 ## Usage
@@ -78,7 +78,7 @@ Real-world examples:
   with:
     notestation: barcelona-notestation-1
     timeout: '120'
-    version: notestation-v3.2.2
+    version: notestation-v3.9.1
     token: ${{ secrets.NOTESTATION_TOKEN }}
 
 - name: Run tests
@@ -96,7 +96,7 @@ Real-world examples:
     tags: mcu_swan notecard_debugger
     notecard-firmware: s3://notecard-firmware/
     timeout: '300'
-    version: notestation-v3.2.2
+    version: notestation-v3.9.1
     token: ${{ secrets.NOTESTATION_TOKEN }}
 
 - name: Run tests
@@ -112,7 +112,7 @@ Real-world examples:
 - name: Install notestation-client
   uses: blues/notestation-actions/install_notestation_client@v1.0.2
   with:
-    version: notestation-v3.2.2
+    version: notestation-v3.9.1
     token: ${{ secrets.NOTESTATION_TOKEN }}
 
 - name: Reserve Notestation
